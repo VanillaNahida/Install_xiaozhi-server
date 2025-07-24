@@ -6,15 +6,15 @@
 可快速使用Docker部署小智服务端
 
 # 食用方法
-请使用root权限运行本脚本
+使用github源获取脚本
 ```
-bash -c "$(wget -qO- https://raw.githubusercontent.com/VanillaNahida/Install_xiaozhi-server/refs/heads/main/install_whiptail.sh)"
+sudo bash -c "$(wget -qO- https://raw.githubusercontent.com/VanillaNahida/Install_xiaozhi-server/refs/heads/main/install_whiptail.sh)"
 ```
 
-如果你的网络不好，你可以使用ghfast加速：
+如果上方运行失败，可以使用ghfast镜像源，命令如下：
 
 ```
-bash -c "$(wget -qO- https://ghfast.top/https://raw.githubusercontent.com/VanillaNahida/Install_xiaozhi-server/refs/heads/main/install_whiptail.sh)"
+sudo bash -c "$(wget -qO- https://ghfast.top/https://raw.githubusercontent.com/VanillaNahida/Install_xiaozhi-server/refs/heads/main/install_whiptail.sh)"
 ```
 # 其他事项
 1. 本脚本仅适用于Ubuntu/Debian系统
