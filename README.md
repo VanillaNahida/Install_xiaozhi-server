@@ -8,7 +8,13 @@
 # 食用方法
 请使用root权限运行本脚本
 ```
-wget https://raw.githubusercontent.com/VanillaNahida/Install_xiaozhi-server/refs/heads/main/install_whiptail.sh | bash ./install_whiptail.sh
+bash -c "$(wget -qO- https://raw.githubusercontent.com/VanillaNahida/Install_xiaozhi-server/refs/heads/main/install_whiptail.sh)"
+```
+
+如果你的网络不好，你可以使用ghfast加速：
+
+```
+bash -c "$(wget -qO- https://ghfast.top/https://raw.githubusercontent.com/VanillaNahida/Install_xiaozhi-server/refs/heads/main/install_whiptail.sh)"
 ```
 # 其他事项
 1. 本脚本仅适用于Ubuntu/Debian系统
