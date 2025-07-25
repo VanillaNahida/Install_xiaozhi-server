@@ -1,5 +1,36 @@
 #!/bin/bash
 
+# 定义中断处理函数
+handle_interrupt() {
+    echo ""
+    echo "安装已被用户中断(Ctrl+C或Esc)"
+    echo "如需重新安装，请再次运行脚本"
+    exit 1
+}
+
+# 设置信号捕获，处理Ctrl+C
+trap handle_interrupt SIGINT
+
+# 处理Esc键
+# 保存终端设置
+old_stty_settings=$(stty -g)
+# 设置终端立即响应，不回显
+stty -icanon -echo min 1 time 0
+
+# 后台进程检测Esc键
+(while true; do
+    read -r key
+    if [[ $key == $'\e' ]]; then
+        # 检测到Esc键，触发中断处理
+        kill -SIGINT $$
+        break
+    fi
+done) &
+
+# 脚本结束时恢复终端设置
+trap 'stty "$old_stty_settings"' EXIT
+
+
 # 打印彩色字符画
 echo -e "\e[1;32m"  # 设置颜色为亮绿色
 cat << "EOF"
@@ -46,6 +77,110 @@ else
     exit 1
 fi
 
+# 下载配置文件函数
+check_and_download() {
+    local filepath=$1
+    local url=$2
+    if [ ! -f "$filepath" ]; then
+        if ! curl -fL --progress-bar "$url" -o "$filepath"; then
+            whiptail --title "错误" --msgbox "${filepath}文件下载失败" 10 50
+            exit 1
+        fi
+    else
+        echo "${filepath}文件已存在，跳过下载"
+    fi
+}
+
+# 检查是否已安装
+check_installed() {
+    # 检查目录是否存在且非空
+    if [ -d "/opt/xiaozhi-server/" ] && [ "$(ls -A /opt/xiaozhi-server/)" ]; then
+        DIR_CHECK=1
+    else
+        DIR_CHECK=0
+    fi
+    
+    # 检查容器是否存在
+    if docker inspect xiaozhi-esp32-server > /dev/null 2>&1; then
+        CONTAINER_CHECK=1
+    else
+        CONTAINER_CHECK=0
+    fi
+    
+    # 两次检查都通过
+    if [ $DIR_CHECK -eq 1 ] && [ $CONTAINER_CHECK -eq 1 ]; then
+        return 0  # 已安装
+    else
+        return 1  # 未安装
+    fi
+}
+
+# 更新相关
+if check_installed; then
+    if whiptail --title "已安装检测" --yesno "检测到小智服务端已安装，是否进行升级？" 10 60; then
+        # 用户选择升级，执行清理操作
+        echo "开始升级操作..."
+        
+        # 停止并移除所有docker-compose服务
+        docker compose -f /opt/xiaozhi-server/docker-compose_all.yml down
+        
+        # 停止并删除特定容器（考虑容器可能不存在的情况）
+        containers=(
+            "xiaozhi-esp32-server"
+            "xiaozhi-esp32-server-web"
+            "xiaozhi-esp32-server-db"
+            "xiaozhi-esp32-server-redis"
+        )
+        
+        for container in "${containers[@]}"; do
+            if docker ps -a --format '{{.Names}}' | grep -q "^${container}$"; then
+                docker stop "$container" >/dev/null 2>&1 && \
+                docker rm "$container" >/dev/null 2>&1 && \
+                echo "成功移除容器: $container"
+            else
+                echo "容器不存在，跳过: $container"
+            fi
+        done
+        
+        # 删除特定镜像（考虑镜像可能不存在的情况）
+        images=(
+            "ghcr.nju.edu.cn/xinnan-tech/xiaozhi-esp32-server:server_latest"
+            "ghcr.nju.edu.cn/xinnan-tech/xiaozhi-esp32-server:web_latest"
+        )
+        
+        for image in "${images[@]}"; do
+            if docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${image}$"; then
+                docker rmi "$image" >/dev/null 2>&1 && \
+                echo "成功删除镜像: $image"
+            else
+                echo "镜像不存在，跳过: $image"
+            fi
+        done
+        
+        echo "所有清理操作完成"
+        
+        # 备份原有配置文件
+        mkdir -p /opt/xiaozhi-server/backup/
+        if [ -f /opt/xiaozhi-server/data/.config.yaml ]; then
+            cp /opt/xiaozhi-server/data/.config.yaml /opt/xiaozhi-server/backup/.config.yaml
+            echo "已备份原有配置文件到 /opt/xiaozhi-server/backup/.config.yaml"
+        fi
+        
+        # 下载最新版配置文件
+        check_and_download "/opt/xiaozhi-server/docker-compose_all.yml" "https://ghfast.top/https://raw.githubusercontent.com/xinnan-tech/xiaozhi-esp32-server/refs/heads/main/main/xiaozhi-server/docker-compose_all.yml"
+        check_and_download "/opt/xiaozhi-server/data/.config.yaml" "https://ghfast.top/https://raw.githubusercontent.com/xinnan-tech/xiaozhi-esp32-server/refs/heads/main/main/xiaozhi-server/config_from_api.yaml"
+        
+        # 启动Docker服务
+        echo "开始启动最新版本服务..."
+        # 升级完成后标记，跳过后续下载步骤
+        UPGRADE_COMPLETED=1
+        docker compose -f /opt/xiaozhi-server/docker-compose_all.yml up -d
+    else
+          whiptail --title "跳过升级" --msgbox "已取消升级，将继续使用当前版本。" 10 50
+          # 跳过升级，继续执行后续安装流程
+    fi
+fi
+
 
 # 检查curl安装
 if ! command -v curl &> /dev/null; then
@@ -71,45 +206,6 @@ else
     echo "Docker已安装，跳过安装步骤"
 fi
 
-# 创建安装目录
-mkdir -p /opt/xiaozhi-server/data
-mkdir -p /opt/xiaozhi-server/models/SenseVoiceSmall
-echo "目录创建完成"
-
-# 下载模型文件
-MODEL_PATH="/opt/xiaozhi-server/models/SenseVoiceSmall/model.pt"
-if [ ! -f "$MODEL_PATH" ]; then
-    (
-    for i in {1..20}; do
-        echo $((i*5))
-        sleep 0.5
-    done
-    ) | whiptail --title "下载中" --gauge "开始下载语音识别模型..." 10 60 0
-    curl -fL --progress-bar https://modelscope.cn/models/iic/SenseVoiceSmall/resolve/master/model.pt -o "$MODEL_PATH" || {
-        whiptail --title "错误" --msgbox "model.pt文件下载失败" 10 50
-        exit 1
-    }
-else
-    echo "model.pt文件已存在，跳过下载"
-fi
-
-# 下载配置文件
-check_and_download() {
-    local filepath=$1
-    local url=$2
-    if [ ! -f "$filepath" ]; then
-        if ! curl -fL --progress-bar "$url" -o "$filepath"; then
-            whiptail --title "错误" --msgbox "${filepath}文件下载失败" 10 50
-            exit 1
-        fi
-    else
-        echo "${filepath}文件已存在，跳过下载"
-    fi
-}
-
-check_and_download "/opt/xiaozhi-server/docker-compose_all.yml" "https://ghfast.top/https://raw.githubusercontent.com/xinnan-tech/xiaozhi-esp32-server/refs/heads/main/main/xiaozhi-server/docker-compose_all.yml"
-check_and_download "/opt/xiaozhi-server/data/.config.yaml" "https://ghfast.top/https://raw.githubusercontent.com/xinnan-tech/xiaozhi-esp32-server/refs/heads/main/main/xiaozhi-server/config_from_api.yaml"
-
 # Docker镜像源配置
 MIRROR_OPTIONS=(
     "1" "轩辕镜像 (推荐)"
@@ -129,14 +225,14 @@ MIRROR_CHOICE=$(whiptail --title "选择Docker镜像源" --menu "请选择要使
 }
 
 case $MIRROR_CHOICE in
-    1) MIRROR_URL="https://docker.xuanyuan.me" ;;
-    2) MIRROR_URL="https://mirror.ccs.tencentyun.com" ;;
-    3) MIRROR_URL="https://docker.mirrors.ustc.edu.cn" ;;
-    4) MIRROR_URL="https://hub-mirror.c.163.com" ;;
-    5) MIRROR_URL="https://05f073ad3c0010ea0f4bc00b7105ec20.mirror.swr.myhuaweicloud.com" ;;
-    6) MIRROR_URL="https://registry.aliyuncs.com" ;;
-    7) MIRROR_URL=$(whiptail --title "自定义镜像源" --inputbox "请输入完整的镜像源URL:" 10 60 3>&1 1>&2 2>&3) ;;
-    8) MIRROR_URL="" ;;
+    1) MIRROR_URL="https://docker.xuanyuan.me" ;; 
+    2) MIRROR_URL="https://mirror.ccs.tencentyun.com" ;; 
+    3) MIRROR_URL="https://docker.mirrors.ustc.edu.cn" ;; 
+    4) MIRROR_URL="https://hub-mirror.c.163.com" ;; 
+    5) MIRROR_URL="https://05f073ad3c0010ea0f4bc00b7105ec20.mirror.swr.myhuaweicloud.com" ;; 
+    6) MIRROR_URL="https://registry.aliyuncs.com" ;; 
+    7) MIRROR_URL=$(whiptail --title "自定义镜像源" --inputbox "请输入完整的镜像源URL:" 10 60 3>&1 1>&2 2>&3) ;; 
+    8) MIRROR_URL="" ;; 
 esac
 
 if [ -n "$MIRROR_URL" ]; then
@@ -154,6 +250,35 @@ EOF
     echo "------------------------------------------------------------
 "
     systemctl restart docker.service
+fi
+
+# 创建安装目录
+mkdir -p /opt/xiaozhi-server/data
+mkdir -p /opt/xiaozhi-server/models/SenseVoiceSmall
+echo "目录创建完成~"
+
+echo "开始下载语音识别模型"
+# 下载模型文件
+MODEL_PATH="/opt/xiaozhi-server/models/SenseVoiceSmall/model.pt"
+if [ ! -f "$MODEL_PATH" ]; then
+    (
+    for i in {1..20}; do
+        echo $((i*5))
+        sleep 0.5
+    done
+    ) | whiptail --title "下载中" --gauge "开始下载语音识别模型..." 10 60 0
+    curl -fL --progress-bar https://modelscope.cn/models/iic/SenseVoiceSmall/resolve/master/model.pt -o "$MODEL_PATH" || {
+        whiptail --title "错误" --msgbox "model.pt文件下载失败" 10 50
+        exit 1
+    }
+else
+    echo "model.pt文件已存在，跳过下载"
+fi
+
+# 如果不是升级完成，才执行下载
+if [ -z "$UPGRADE_COMPLETED" ]; then
+    check_and_download "/opt/xiaozhi-server/docker-compose_all.yml" "https://ghfast.top/https://raw.githubusercontent.com/xinnan-tech/xiaozhi-esp32-server/refs/heads/main/main/xiaozhi-server/docker-compose_all.yml"
+    check_and_download "/opt/xiaozhi-server/data/.config.yaml" "https://ghfast.top/https://raw.githubusercontent.com/xinnan-tech/xiaozhi-esp32-server/refs/heads/main/main/xiaozhi-server/config_from_api.yaml"
 fi
 
 # 启动Docker服务
