@@ -246,17 +246,32 @@ if [ -n "$MIRROR_URL" ]; then
     "registry-mirrors": ["$MIRROR_URL"]
 }
 EOF
-    whiptail --title "配置成功" --msgbox "已成功添加镜像源: $MIRROR_URL\n正在重启Docker服务...\n(按Enter键继续...)" 12 60
-    echo "------------------------------------------------------------
-"
+    whiptail --title "配置成功" --msgbox "已成功添加镜像源: $MIRROR_URL\n请按Enter键重启Docker服务并继续..." 12 60
+    echo "------------------------------------------------------------"
+    echo "开始重启Docker服务..."
     systemctl restart docker.service
 fi
 
 # 创建安装目录
-mkdir -p /opt/xiaozhi-server/data
-mkdir -p /opt/xiaozhi-server/models/SenseVoiceSmall
-echo "目录创建完成~"
+echo "------------------------------------------------------------"
+echo "开始创建安装目录..."
+# 检查并创建数据目录
+if [ ! -d /opt/xiaozhi-server/data ]; then
+    mkdir -p /opt/xiaozhi-server/data
+    echo "已创建数据目录: /opt/xiaozhi-server/data"
+else
+    echo "目录xiaozhi-server/data已存在，跳过创建"
+fi
 
+# 检查并创建模型目录
+if [ ! -d /opt/xiaozhi-server/models/SenseVoiceSmall ]; then
+    mkdir -p /opt/xiaozhi-server/models/SenseVoiceSmall
+    echo "已创建模型目录: /opt/xiaozhi-server/models/SenseVoiceSmall"
+else
+    echo "目录xiaozhi-server/models/SenseVoiceSmall已存在，跳过创建"
+fi
+
+echo "------------------------------------------------------------"
 echo "开始下载语音识别模型"
 # 下载模型文件
 MODEL_PATH="/opt/xiaozhi-server/models/SenseVoiceSmall/model.pt"
@@ -283,8 +298,8 @@ fi
 
 # 启动Docker服务
 (
-echo "20"
-echo "# 正在拉取Docker镜像..."
+echo "------------------------------------------------------------"
+echo "正在拉取Docker镜像..."
 echo "这可能需要几分钟时间，请耐心等待"
 docker compose -f /opt/xiaozhi-server/docker-compose_all.yml up -d
 
@@ -293,8 +308,8 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "50"
-echo "# 正在检查服务启动状态..."
+echo "------------------------------------------------------------"
+echo "正在检查服务启动状态..."
 TIMEOUT=300
 START_TIME=$(date +%s)
 while true; do
@@ -310,12 +325,17 @@ while true; do
     sleep 1
 done
 
-echo "90"
-echo "# 服务端启动成功！正在完成配置..."
-) | whiptail --title "服务启动中" --gauge "正在启动服务..." 10 60 0
+    echo "服务端启动成功！正在完成配置..."
+    echo "正在启动服务..."
+    docker compose -f docker-compose_all.yml up -d
+    echo "服务启动完成！"
+)
 
 # 密钥配置
-whiptail --title "设置服务器密钥" --msgbox "请使用浏览器，打开智控台并注册账号，链接：http://127.0.0.1:8002/\n如果是公网部署，请更换为 http://你的服务器公网IP地址:8002/ (记得在服务器安全组放行端口)。\n第一个用户即是超级管理员，以后的用户都是普通用户。普通用户只能绑定设备和配置智能体; 超级管理员可以进行模型管理、用户管理、参数配置等功能。\n注册好后请按Enter键继续" 15 70
+
+# 获取服务器公网地址
+PUBLIC_IP=$(hostname -I | awk '{print $1}')
+whiptail --title "设置服务器密钥" --msgbox "请使用浏览器，访问下方链接，打开智控台并注册账号: \n\n内网地址：http://127.0.0.1:8002/\n公网地址：http://$PUBLIC_IP:8002/ (若是云服务器请在服务器安全组放行端口 8000 8001 8002)。\n\n注册的第一个用户即是超级管理员，以后注册的用户都是普通用户。普通用户只能绑定设备和配置智能体; 超级管理员可以进行模型管理、用户管理、参数配置等功能。\n\n注册好后请按Enter键继续" 18 70
 
 SECRET_KEY=$(whiptail --title "服务器密钥配置" --inputbox "请使用超级管理员账号登录智控台 (http://127.0.0.1:8002)\n在顶部菜单 参数字典 → 参数管理 找到参数编码: server.secret (服务器密钥) \n复制该参数值并输入到下面输入框\n\n请输入密钥(留空则跳过配置):" 15 60 3>&1 1>&2 2>&3)
 
@@ -342,4 +362,4 @@ whiptail --title "安装完成！" --msgbox "\
 OTA 地址: http://$LOCAL_IP:8002/xiaozhi/ota/\n\
 视觉分析接口地址: $VISION_ADDR\n\
 WebSocket 地址: $WEBSOCKET_ADDR\n\
-\n安装完毕！\n按Enter键退出..." 16 70
+\n安装完毕！感谢您的使用！\n按Enter键退出..." 16 70
