@@ -59,6 +59,19 @@ check_whiptail() {
 
 check_whiptail
 
+# 创建确认对话框
+whiptail --title "安装确认" --yesno "即将安装小智服务端，是否继续？" \
+  --yes-button "继续" --no-button "退出" 10 50
+
+# 根据用户选择执行操作
+case $? in
+  0)
+    ;;
+  1)
+    exit 1
+    ;;
+esac
+
 # 检查root权限
 if [ $EUID -ne 0 ]; then
     whiptail --title "权限错误" --msgbox "请使用root权限运行本脚本" 10 50
