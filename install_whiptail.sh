@@ -197,24 +197,57 @@ fi
 
 # 检查curl安装
 if ! command -v curl &> /dev/null; then
-    whiptail --title "安装curl" --msgbox "未检测到curl，开始安装..." 10 50
+    echo "------------------------------------------------------------"
+    echo "未检测到curl，正在安装..."
     apt update
     apt install -y curl
 else
+    echo "------------------------------------------------------------"
     echo "curl已安装，跳过安装步骤"
 fi
 
 # 检查Docker安装
 if ! command -v docker &> /dev/null; then
-    whiptail --title "安装Docker" --msgbox "未检测到Docker，开始安装..." 10 50
+    echo "------------------------------------------------------------"
+    echo "未检测到Docker，正在安装..."
+    
+    # 使用国内镜像源替代官方源
+    DISTRO=$(lsb_release -cs)
+    MIRROR_URL="https://mirrors.aliyun.com/docker-ce/linux/ubuntu"
+    GPG_URL="https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg"
+    
+    # 安装基础依赖
     apt update
-    apt install -y apt-transport-https ca-certificates curl software-properties-common
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-    add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+    apt install -y apt-transport-https ca-certificates curl software-properties-common gnupg
+    
+    # 创建密钥目录并添加国内镜像源密钥
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL "$GPG_URL" | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    
+    # 添加国内镜像源
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] $MIRROR_URL $DISTRO stable" \
+        > /etc/apt/sources.list.d/docker.list
+    
+    # 添加备用官方源密钥（避免国内源密钥验证失败）
+    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 7EA0A9C3F273FCD8 2>/dev/null || \
+    echo "警告：部分密钥添加失败，继续尝试安装..."
+    
+    # 安装Docker
     apt update
-    apt install -y docker-ce
+    apt install -y docker-ce docker-ce-cli containerd.io
+    
+    # 启动服务
     systemctl start docker
     systemctl enable docker
+    
+    # 检查是否安装成功
+    if docker --version; then
+        echo "------------------------------------------------------------"
+        echo "Docker安装完成！"
+    else
+        whiptail --title "错误" --msgbox "Docker安装失败，请检查日志。" 10 50
+        exit 1
+    fi
 else
     echo "Docker已安装，跳过安装步骤"
 fi
