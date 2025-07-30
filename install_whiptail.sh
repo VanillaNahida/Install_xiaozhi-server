@@ -335,9 +335,8 @@ done
 
 # 获取服务器公网地址
 PUBLIC_IP=$(hostname -I | awk '{print $1}')
-whiptail --title "设置服务器密钥" --msgbox "请使用浏览器，访问下方链接，打开智控台并注册账号: \n\n内网地址：http://127.0.0.1:8002/\n公网地址：http://$PUBLIC_IP:8002/ (若是云服务器请在服务器安全组放行端口 8000 8001 8002)。\n\n注册的第一个用户即是超级管理员，以后注册的用户都是普通用户。普通用户只能绑定设备和配置智能体; 超级管理员可以进行模型管理、用户管理、参数配置等功能。\n\n注册好后请按Enter键继续" 18 70
-
-SECRET_KEY=$(whiptail --title "服务器密钥配置" --inputbox "请使用超级管理员账号登录智控台 (http://127.0.0.1:8002)\n在顶部菜单 参数字典 → 参数管理 找到参数编码: server.secret (服务器密钥) \n复制该参数值并输入到下面输入框\n\n请输入密钥(留空则跳过配置):" 15 60 3>&1 1>&2 2>&3)
+whiptail --title "配置服务器密钥" --msgbox "请使用浏览器，访问下方链接，打开智控台并注册账号: \n\n内网地址：http://127.0.0.1:8002/\n公网地址：http://$PUBLIC_IP:8002/ (若是云服务器请在服务器安全组放行端口 8000 8001 8002)。\n\n注册的第一个用户即是超级管理员，以后注册的用户都是普通用户。普通用户只能绑定设备和配置智能体; 超级管理员可以进行模型管理、用户管理、参数配置等功能。\n\n注册好后请按Enter键继续" 18 70
+SECRET_KEY=$(whiptail --title "配置服务器密钥" --inputbox "请使用超级管理员账号登录智控台\n内网地址：http://127.0.0.1:8002/\n公网地址：http://$PUBLIC_IP:8002/\n在顶部菜单 参数字典 → 参数管理 找到参数编码: server.secret (服务器密钥) \n复制该参数值并输入到下面输入框\n\n请输入密钥(留空则跳过配置):" 15 60 3>&1 1>&2 2>&3)
 
 if [ -n "$SECRET_KEY" ]; then
     python3 -c "
@@ -358,6 +357,7 @@ WEBSOCKET_ADDR=$(docker logs xiaozhi-esp32-server 2>&1 | tac | grep -m 1 -E -o "
 VISION_ADDR=$(docker logs xiaozhi-esp32-server 2>&1 | tac | grep -m 1 "视觉" | grep -m 1 -E -o "http://[^ ]+")
 
 whiptail --title "安装完成！" --msgbox "\
+服务端相关地址如下：\n\
 管理后台访问地址: http://$LOCAL_IP:8002\n\
 OTA 地址: http://$LOCAL_IP:8002/xiaozhi/ota/\n\
 视觉分析接口地址: $VISION_ADDR\n\
