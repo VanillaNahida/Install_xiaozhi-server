@@ -373,7 +373,7 @@ done
 
     echo "服务端启动成功！正在完成配置..."
     echo "正在启动服务..."
-    docker compose -f docker-compose_all.yml up -d
+    docker compose -f /opt/xiaozhi-server/docker-compose_all.yml up -d
     echo "服务启动完成！"
 )
 
