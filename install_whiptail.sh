@@ -406,7 +406,7 @@ LOCAL_IP=$(hostname -I | awk '{print $1}')
 whiptail --title "安装完成！" --msgbox "\
 服务端相关地址如下：\n\
 管理后台访问地址: http://$LOCAL_IP:8002\n\
-OTA 地址: http://$LOCAL_IP:8003/xiaozhi/ota/\n\
+OTA 地址: http://$LOCAL_IP:8002/xiaozhi/ota/\n\
 视觉分析接口地址: http://$LOCAL_IP:8003/mcp/vision/explain\n\
 WebSocket 地址: ws://$LOCAL_IP:8000/xiaozhi/v1/\n\
 \n安装完毕！感谢您的使用！\n按Enter键退出..." 16 70
