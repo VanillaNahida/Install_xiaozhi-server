@@ -135,7 +135,7 @@ if check_installed; then
         echo "开始升级操作..."
         
         # 停止并移除所有docker-compose服务
-        docker compose -f /opt/xiaozhi-server/docker-compose_all.yml down
+        docker-compose -f /opt/xiaozhi-server/docker-compose_all.yml down
         
         # 停止并删除特定容器（考虑容器可能不存在的情况）
         containers=(
@@ -187,7 +187,7 @@ if check_installed; then
         echo "开始启动最新版本服务..."
         # 升级完成后标记，跳过后续下载步骤
         UPGRADE_COMPLETED=1
-        docker compose -f /opt/xiaozhi-server/docker-compose_all.yml up -d
+        docker-compose -f /opt/xiaozhi-server/docker-compose_all.yml up -d
     else
           whiptail --title "跳过升级" --msgbox "已取消升级，将继续使用当前版本。" 10 50
           # 跳过升级，继续执行后续安装流程
@@ -347,7 +347,7 @@ fi
 echo "------------------------------------------------------------"
 echo "正在拉取Docker镜像..."
 echo "这可能需要几分钟时间，请耐心等待"
-docker compose -f /opt/xiaozhi-server/docker-compose_all.yml up -d
+docker-compose -f /opt/xiaozhi-server/docker-compose_all.yml up -d
 
 if [ $? -ne 0 ]; then
     whiptail --title "错误" --msgbox "Docker服务启动失败，请尝试更换镜像源后重新执行本脚本" 10 60
@@ -373,7 +373,7 @@ done
 
     echo "服务端启动成功！正在完成配置..."
     echo "正在启动服务..."
-    docker compose -f /opt/xiaozhi-server/docker-compose_all.yml up -d
+    docker-compose -f /opt/xiaozhi-server/docker-compose_all.yml up -d
     echo "服务启动完成！"
 )
 
