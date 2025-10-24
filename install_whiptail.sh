@@ -254,14 +254,15 @@ fi
 
 # Docker镜像源配置
 MIRROR_OPTIONS=(
-    "1" "轩辕镜像 (推荐)"
-    "2" "腾讯云镜像源"
-    "3" "中科大镜像源"
-    "4" "网易163镜像源"
-    "5" "华为云镜像源"
-    "6" "阿里云镜像源"
-    "7" "自定义镜像源"
-    "8" "跳过配置"
+    "1" "轩辕镜像"
+    "2" "毫秒镜像"
+    "3" "腾讯云镜像源"
+    "4" "中科大镜像源"
+    "5" "网易163镜像源"
+    "6" "华为云镜像源"
+    "7" "阿里云镜像源"
+    "8" "自定义镜像源"
+    "9" "跳过配置"
 )
 
 MIRROR_CHOICE=$(whiptail --title "选择Docker镜像源" --menu "请选择要使用的Docker镜像源" 20 60 10 \
@@ -272,13 +273,14 @@ MIRROR_CHOICE=$(whiptail --title "选择Docker镜像源" --menu "请选择要使
 
 case $MIRROR_CHOICE in
     1) MIRROR_URL="https://docker.xuanyuan.me" ;; 
-    2) MIRROR_URL="https://mirror.ccs.tencentyun.com" ;; 
-    3) MIRROR_URL="https://docker.mirrors.ustc.edu.cn" ;; 
-    4) MIRROR_URL="https://hub-mirror.c.163.com" ;; 
-    5) MIRROR_URL="https://05f073ad3c0010ea0f4bc00b7105ec20.mirror.swr.myhuaweicloud.com" ;; 
-    6) MIRROR_URL="https://registry.aliyuncs.com" ;; 
-    7) MIRROR_URL=$(whiptail --title "自定义镜像源" --inputbox "请输入完整的镜像源URL:" 10 60 3>&1 1>&2 2>&3) ;; 
-    8) MIRROR_URL="" ;; 
+    2) MIRROR_URL="https://docker.1ms.run" ;; 
+    3) MIRROR_URL="https://mirror.ccs.tencentyun.com" ;; 
+    4) MIRROR_URL="https://docker.mirrors.ustc.edu.cn" ;; 
+    5) MIRROR_URL="https://hub-mirror.c.163.com" ;; 
+    6) MIRROR_URL="https://05f073ad3c0010ea0f4bc00b7105ec20.mirror.swr.myhuaweicloud.com" ;; 
+    7) MIRROR_URL="https://registry.aliyuncs.com" ;; 
+    8) MIRROR_URL=$(whiptail --title "自定义镜像源" --inputbox "请输入完整的镜像源URL:\n例如: https://docker.example.com" 10 60 3>&1 1>&2 2>&3) ;; 
+    9) MIRROR_URL="" ;; 
 esac
 
 if [ -n "$MIRROR_URL" ]; then
