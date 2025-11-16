@@ -127,6 +127,72 @@ docker_compose() {
     fi
 }
 
+# 从多个接口获取公网IP地址的函数，实现轮流查询机制
+get_public_ip() {
+    # 定义IP查询接口列表
+    local ip_services=(
+        "https://myip.ipip.net"
+        "https://ddns.oray.com/checkip"
+        "https://ip.3322.net"
+        "https://4.ipw.cn"
+        "https://v4.yinghualuo.cn/bejson"
+    )
+    
+    # 尝试每个服务，直到成功获取IP
+    for service in "${ip_services[@]}"; do
+        echo "尝试从 $service 获取公网IP..."
+        
+        # 使用curl获取响应，设置超时时间为5秒
+        local response
+        response=$(curl -s -m 5 "$service" 2>/dev/null)
+        
+        # 检查curl是否成功执行
+        if [ $? -eq 0 ] && [ -n "$response" ]; then
+            # 尝试从响应中提取IPv4地址
+            local ip
+            
+            # 根据不同服务的响应格式提取IP
+            case "$service" in
+                "https://myip.ipip.net")
+                    # 格式示例: 当前 IP：192.168.1.1  来自于：中国 北京 北京 联通
+                    ip=$(echo "$response" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
+                    ;;
+                "https://ddns.oray.com/checkip")
+                    # 格式示例: Current IP Address: 192.168.1.1
+                    ip=$(echo "$response" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
+                    ;;
+                "https://ip.3322.net")
+                    # 格式示例: 192.168.1.1
+                    ip=$(echo "$response" | grep -oE '^([0-9]{1,3}\.){3}[0-9]{1,3}$' | head -1)
+                    ;;
+                "https://4.ipw.cn")
+                    # 格式示例: 192.168.1.1
+                    ip=$(echo "$response" | grep -oE '^([0-9]{1,3}\.){3}[0-9]{1,3}$' | head -1)
+                    ;;
+                "https://v4.yinghualuo.cn/bejson")
+                    # 格式示例: {"is_ipv6":false,"ip":"192.168.1.1","location":"..."}
+                    ip=$(echo "$response" | grep -oE '"ip":"([0-9]{1,3}\.){3}[0-9]{1,3}"' | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
+                    ;;
+            esac
+            
+            # 验证提取到的是否为有效的IPv4地址
+            if [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+                echo "成功获取公网IP: $ip"
+                echo "$ip"
+                return 0
+            fi
+        fi
+        
+        echo "从 $service 获取IP失败，尝试下一个服务..."
+    done
+    
+    # 如果所有服务都失败，回退到本地IP
+    echo "警告：所有公网IP查询服务均失败，使用本地IP"
+    local local_ip=$(hostname -I | awk '{print $1}')
+    echo "$local_ip"
+    return 1
+}
+
 # 检查是否已安装
 check_installed() {
     # 检查目录是否存在且非空
@@ -350,7 +416,7 @@ if [ ! -f "$MODEL_PATH" ]; then
     (
     for i in {1..20}; do
         echo $((i*5))
-        sleep 0.5
+        sleep 0.1
     done
     ) | whiptail --title "下载中" --gauge "开始下载语音识别模型..." 10 60 0
     curl -fL --progress-bar https://modelscope.cn/models/iic/SenseVoiceSmall/resolve/master/model.pt -o "$MODEL_PATH" || {
@@ -405,8 +471,15 @@ done
 # 密钥配置
 
 # 获取服务器公网地址
-PUBLIC_IP=$(hostname -I | awk '{print $1}')
-whiptail --title "配置服务器密钥" --msgbox "请使用浏览器，访问下方链接，打开智控台并注册账号: \n\n内网地址：http://127.0.0.1:8002/\n公网地址：http://$PUBLIC_IP:8002/ (若是云服务器请在服务器安全组放行端口 8000 8001 8002)。\n\n注册的第一个用户即是超级管理员，以后注册的用户都是普通用户。普通用户只能绑定设备和配置智能体; 超级管理员可以进行模型管理、用户管理、参数配置等功能。\n\n注册好后请按Enter键继续" 18 70
+PUBLIC_IP=$(get_public_ip)
+whiptail --title "配置服务器密钥" --msgbox "请使用浏览器，访问下方链接，打开智控台并注册账号: \
+
+内网地址：http://127.0.0.1:8002/\
+公网地址：http://$PUBLIC_IP:8002/ (若是云服务器请在服务器安全组放行端口 8000 8001 8002)。\
+
+注册的第一个用户即是超级管理员，以后注册的用户都是普通用户。普通用户只能绑定设备和配置智能体; 超级管理员可以进行模型管理、用户管理、参数配置等功能。\
+
+注册好后请按Enter键继续" 18 70
 SECRET_KEY=$(whiptail --title "配置服务器密钥" --inputbox "请使用超级管理员账号登录智控台\n内网地址：http://127.0.0.1:8002/\n公网地址：http://$PUBLIC_IP:8002/\n在顶部菜单 参数字典 → 参数管理 找到参数编码: server.secret (服务器密钥) \n复制该参数值并输入到下面输入框\n\n请输入密钥(留空则跳过配置):" 15 60 3>&1 1>&2 2>&3)
 
 if [ -n "$SECRET_KEY" ]; then
@@ -423,15 +496,14 @@ with open(config_path, 'w') as f:
 fi
 
 # 获取并显示地址信息
-LOCAL_IP=$(hostname -I | awk '{print $1}')
-# WEBSOCKET_ADDR=$(docker logs xiaozhi-esp32-server 2>&1 | tac | grep -m 1 -E -o "ws://[^ ]+")
-# VISION_ADDR=$(docker logs xiaozhi-esp32-server 2>&1 | tac | grep -m 1 "视觉" | grep -m 1 -E -o "http://[^ ]+")
+PUBLIC_IP_DISPLAY=$(get_public_ip)
 
 # 修复日志文件获取不到ws的问题，改为硬编码
 whiptail --title "安装完成！" --msgbox "\
 服务端相关地址如下：\n\
-管理后台访问地址: http://$LOCAL_IP:8002\n\
-OTA 地址: http://$LOCAL_IP:8002/xiaozhi/ota/\n\
-视觉分析接口地址: http://$LOCAL_IP:8003/mcp/vision/explain\n\
-WebSocket 地址: ws://$LOCAL_IP:8000/xiaozhi/v1/\n\
-\n安装完毕！感谢您的使用！\n按Enter键退出..." 16 70
+公网地址:\n\
+管理后台: http://$PUBLIC_IP_DISPLAY:8002\n\
+OTA: http://$PUBLIC_IP_DISPLAY:8002/xiaozhi/ota/\n\
+视觉分析接口: http://$PUBLIC_IP_DISPLAY:8003/mcp/vision/explain\n\
+WebSocket: ws://$PUBLIC_IP_DISPLAY:8000/xiaozhi/v1/\n\
+\n安装完毕！感谢您的使用！\n按Enter键退出..." 20 70
