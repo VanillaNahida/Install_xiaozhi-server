@@ -17,16 +17,6 @@ old_stty_settings=$(stty -g)
 # 设置终端立即响应，不回显
 stty -icanon -echo min 1 time 0
 
-# 后台进程检测Esc键
-(while true; do
-    read -r key
-    if [[ $key == $'\e' ]]; then
-        # 检测到Esc键，触发中断处理
-        kill -SIGINT $$
-        break
-    fi
-done) &
-
 # 脚本结束时恢复终端设置
 trap 'stty "$old_stty_settings"' EXIT
 
@@ -351,6 +341,7 @@ MIRROR_OPTIONS=(
 MIRROR_CHOICE=$(whiptail --title "选择Docker镜像源" --menu "请选择要使用的Docker镜像源" 20 60 10 \
 "${MIRROR_OPTIONS[@]}" 3>&1 1>&2 2>&3) || {
     echo "用户取消选择，退出脚本"
+    cleanup
     exit 1
 }
 
@@ -502,3 +493,4 @@ OTA: http://$PUBLIC_IP:8002/xiaozhi/ota/\n\
 视觉分析接口: http://$PUBLIC_IP:8003/mcp/vision/explain\n\
 WebSocket: ws://$PUBLIC_IP:8000/xiaozhi/v1/\n\
 \n安装完毕！感谢您的使用！\n按Enter键退出..." 20 70
+cleanup
