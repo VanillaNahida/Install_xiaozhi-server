@@ -5,6 +5,8 @@ handle_interrupt() {
     echo ""
     echo "安装已被用户中断(Ctrl+C或Esc)"
     echo "如需重新安装，请再次运行脚本"
+    # 杀死后台进程
+    kill $ESC_PID 2>/dev/null
     exit 1
 }
 
@@ -17,9 +19,26 @@ old_stty_settings=$(stty -g)
 # 设置终端立即响应，不回显
 stty -icanon -echo min 1 time 0
 
-# 脚本结束时恢复终端设置
-trap 'stty "$old_stty_settings"' EXIT
+# 后台进程检测Esc键
+(
+while true; do
+    read -r key
+    if [[ $key == $'\e' ]]; then
+        # 检测到Esc键，触发中断处理
+        kill -SIGINT 
+$$
+        break
+    fi
+done
+) &
+ESC_PID=$!  # 保存后台进程ID
 
+# 脚本结束时恢复终端设置并清理后台进程
+cleanup() {
+    stty "$old_stty_settings"
+    kill $ESC_PID 2>/dev/null
+}
+trap cleanup EXIT
 
 # 打印彩色字符画
 echo -e "\e[1;32m"  # 设置颜色为亮绿色
@@ -35,8 +54,6 @@ EOF
 echo -e "\e[0m"  # 重置颜色
 echo -e "\e[1;36m  小智服务端全量部署一键安装脚本 Ver 0.2 2025年11月16日更新 \e[0m\n"
 sleep 1
-
-
 
 # 检查并安装whiptail
 check_whiptail() {
@@ -58,6 +75,7 @@ case $? in
   0)
     ;;
   1)
+    cleanup
     exit 1
     ;;
 esac
@@ -65,6 +83,7 @@ esac
 # 检查root权限
 if [ $EUID -ne 0 ]; then
     whiptail --title "权限错误" --msgbox "请使用root权限运行本脚本" 10 50
+    cleanup
     exit 1
 fi
 
