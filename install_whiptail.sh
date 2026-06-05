@@ -174,6 +174,25 @@ get_public_ip() {
     return 1
 }
 
+# 获取本机内网IP地址（通过网卡获取，非127.0.0.1）
+get_local_ip() {
+    local ip
+    # 通过默认路由获取本机内网IP，最可靠的方式
+    ip=$(ip route get 1 2>/dev/null | awk '{print $NF; exit}')
+    if [ -n "$ip" ] && [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+        echo "$ip"
+    else
+        # 回退方案：从网卡列表中排除127.0.0.1取第一个
+        ip=$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '127.0.0.1' | head -1)
+        if [ -n "$ip" ]; then
+            echo "$ip"
+        else
+            # 最后回退到hostname -I
+            hostname -I | awk '{print $1}'
+        fi
+    fi
+}
+
 # 检查是否已安装
 check_installed() {
     # 检查目录是否存在且非空
@@ -455,16 +474,17 @@ done
 
 # 获取服务器公网地址
 PUBLIC_IP=$(get_public_ip)
+LOCAL_IP=$(get_local_ip)
 whiptail --title "配置服务器密钥" --msgbox "请使用浏览器，访问下方链接，打开智控台并注册账号: \
 
-内网地址：http://127.0.0.1:8002/ \
+内网地址：http://$LOCAL_IP:8002/ \
 
 公网地址：http://$PUBLIC_IP:8002/ (若是云服务器请在服务器安全组放行端口 8000 8001 8002)。\
 
 注册的第一个用户即是超级管理员，以后注册的用户都是普通用户。普通用户只能绑定设备和配置智能体; 超级管理员可以进行模型管理、用户管理、参数配置等功能。\
 
 注册好后请按Enter键继续" 18 70
-SECRET_KEY=$(whiptail --title "配置服务器密钥" --inputbox "请使用超级管理员账号登录智控台\n内网地址：http://127.0.0.1:8002/ \
+SECRET_KEY=$(whiptail --title "配置服务器密钥" --inputbox "请使用超级管理员账号登录智控台\n内网地址：http://$LOCAL_IP:8002/ \
 公网地址：http://$PUBLIC_IP:8002/\n在顶部菜单 参数字典 → 参数管理 找到参数编码: server.secret (服务器密钥) \
 复制该参数值并输入到下面输入框\n\n请输入密钥(留空则跳过配置):" 15 60 3>&1 1>&2 2>&3)
 
@@ -490,4 +510,9 @@ whiptail --title "安装完成！" --msgbox "\
 OTA: http://$PUBLIC_IP:8002/xiaozhi/ota/\n\
 视觉分析接口: http://$PUBLIC_IP:8003/mcp/vision/explain\n\
 WebSocket: ws://$PUBLIC_IP:8000/xiaozhi/v1/\n\
-\n安装完毕！感谢您的使用！\n按Enter键退出..." 20 70
+\n内网地址:\n\
+管理后台: http://$LOCAL_IP:8002\n\
+OTA: http://$LOCAL_IP:8002/xiaozhi/ota/\n\
+视觉分析接口: http://$LOCAL_IP:8003/mcp/vision/explain\n\
+WebSocket: ws://$LOCAL_IP:8000/xiaozhi/v1/\n\
+\n安装完毕！感谢您的使用！\n按Enter键退出..." 24 70
