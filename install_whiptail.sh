@@ -419,10 +419,12 @@ fi
 echo "------------------------------------------------------------"
 echo "正在拉取Docker镜像..."
 echo "这可能需要几分钟时间，请耐心等待"
+echo "若提示失败，可能是小智官方镜像源负载过高，您可以稍后重新执行本脚本"
 docker_compose -f /opt/xiaozhi-server/docker-compose_all.yml up -d
 
 if [ $? -ne 0 ]; then
-    whiptail --title "错误" --msgbox "Docker服务启动失败，请尝试更换镜像源后重新执行本脚本" 10 60
+    whiptail --title "错误" --msgbox "Docker服务启动失败，可能是镜像源负载过高，请尝试更换镜像源后重新执行本脚本" 10 60
+    whiptail --title "提示" --msgbox '您可以重新执行下面命令来重新安装，之前的安装进度将保留：sudo bash -c "$(wget -qO- https://xiaozhi.xcnahida.cn/inst.sh)"' 10 60
     exit 1
 fi
 
